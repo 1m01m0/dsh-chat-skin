@@ -2,10 +2,10 @@
 
 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web 聊天界面换壁纸、换肤的**客户端插件**（遵循官方 `dsh.client` 插件契约）。
 
-- 6 套预设皮肤（樱花粉 / 薄荷海盐 / 深夜星空 / 赛博霓虹 / 落日暖阳 / 极简毛玻璃），全部 CSS 渐变实现，离线可用
-- 自定义壁纸：上传本地图片（自动压缩为 1600px JPEG data URL），即点即换
-- 压暗 / 毛玻璃滑杆：微调表面透明度与 `backdrop-filter` 强度
-- **原生设置卡片**：注册进 设置 → 通用 → "换肤 / 壁纸"（`settings.general.item` 槽位，与官方"外观"行同机制）
+- 自由调色盘：直接选择任意背景颜色，不提供预设主题
+- 本地照片背景：上传本地图片（自动压缩为 1200px JPEG data URL），即点即换
+- 历史背景：保留最近 5 张照片，点击缩略图即可恢复，可单张删除或清空
+- **原生设置卡片**：注册进 设置 → 通用 → "自定义背景"（`settings.general.item` 槽位，与官方"外观"行同机制）
 - 🎨 悬浮面板：右下角快速切换入口，与设置卡片共享同一份状态（localStorage `dsh.chatSkin.v1`，重启自动恢复）
 - 深色 / 浅色主题独立适配（跟随官方 `body[data-ds-dark-theme]`）
 
@@ -50,8 +50,8 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:64287/plugins/dsh-clie
 
 ## 使用
 
-- **设置 → 通用 → 换肤 / 壁纸**：预设方块、上传壁纸、移除、压暗/毛玻璃滑杆、恢复默认
-- **🎨 悬浮按钮**（右下角）：快速切换入口
+- **设置 → 通用 → 自定义背景**：打开调色盘、上传/移除本地照片、恢复默认、管理历史背景
+- **🎨 悬浮按钮**（右下角）：快速打开相同的颜色和照片控制
 
 ## 架构
 
@@ -70,11 +70,11 @@ assets/sample-wallpaper.svg  # 样例壁纸
 并用 `position:fixed; z-index:-1` 的全屏层承载壁纸；各表面 token 半透明后壁纸透出。
 详见 [docs/architecture.md](docs/architecture.md)。
 
-## 定制皮肤
+## 自由定制
 
-编辑 `src/client/index.js` 的 `PRESETS` 数组（单文件，无构建步骤；改完重跑
-`scripts/install.mjs` 并重启）。预设字段：`id / label / dot / wall / dim / blur /
-surface / accent / ink / extra`。附加 CSS 用 `body[data-ds-skin="<id>"]` 作用域书写。
+用户选择保存为 `{ c, a, h }`：`c` 是可选的六位十六进制背景色，`a` 是当前历史项 ID，
+`h` 是最多 5 条的本地照片历史。当前照片优先显示为全屏背景，颜色同时作为半透明界面
+表面的协调色；恢复默认只清除当前选择，不删除历史。
 
 ## Model Experience
 
@@ -94,5 +94,6 @@ system prompt、不参与任何模型请求。其所有副作用（CSS 注入、
   定位，需从运行中的 bundle 现抓类名（方法见 docs/architecture.md）。
 - **设置卡片依赖 React 环境**：`react/jsx-runtime` 或 `defineStore` 不可用时自动退化为
   纯 vanilla 引擎（CSS 注入 + 🎨 悬浮面板），不报错。
-- **自定义壁纸存 localStorage**：受浏览器配额（约 5MB）限制；引擎已压缩至 1600px JPEG。
+- **颜色和照片存 localStorage**：受浏览器配额（约 5MB）限制；照片会压缩至 1200px JPEG，
+  最多保留 5 张，容量不足时自动淘汰最旧记录。
 - **动态插件互操作**：本插件是静态 Loader 行，与 `cordis_*` 动态包机制互不相通（见 docs/architecture.md）。

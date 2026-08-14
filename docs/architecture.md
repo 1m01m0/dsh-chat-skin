@@ -96,8 +96,8 @@ window.__ModuleLoader__.load({
 - 覆盖的必胜写法（特异性 + 注入顺序都占优）：
 
   ```css
-  body[data-ds-skin="sakura"] { --dsw-alias-bg-base: rgba(255,244,249,.5); }
-  body[data-ds-dark-theme][data-ds-skin="sakura"] { --dsw-alias-bg-base: rgba(42,25,35,.5); }
+  body[data-ds-skin="custom"] { --dsw-alias-bg-base: rgba(245,248,250,.5); }
+  body[data-ds-dark-theme][data-ds-skin="custom"] { --dsw-alias-bg-base: rgba(24,26,32,.5); }
   ```
 
 - 完整 token 表见 [tokens.md](tokens.md)；dist 里的源定义可随时重新提取：
