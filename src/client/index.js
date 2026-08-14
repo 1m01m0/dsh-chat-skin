@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-chat-skin",
+	id: "dsh-client-chat-skin",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

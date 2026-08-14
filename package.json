@@ -4,7 +4,9 @@
   "private": true,
   "description": "Chat wallpaper & skin client plugin for the DeepSeek Harness Web GUI: CSS-token skins, custom wallpaper, native settings card (dsh.client contract)",
   "type": "module",
+  "main": "./src/index.js",
   "exports": {
+    ".": "./src/index.js",
     "./client": "./src/client/index.js",
     "./package.json": "./package.json"
   },

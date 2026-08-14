@@ -16,7 +16,9 @@
 | 契约点 | 本插件 |
 |---|---|
 | 包声明 | `package.json` 中 `dsh.client`：`platform: "web"`、`immediately: true`、inject 依赖边 |
+| Host 入口 | `exports["."]` → `src/index.js`（Cordis Loader 需要；无副作用的 `apply`） |
 | 入口 | `exports["./client"]` → `src/client/index.js`（节点端扫描进 `window.__DSH_BOOT__`，服务 `/plugins/<id>/client.js`） |
+| 模块注册 | `__ModuleLoader__.load` 的 `id` 与包名同为 `dsh-client-chat-skin` |
 | 导出纪律 | 仅导出 `apply` / `inject`（`inject: ["slots", "locale"]`） |
 | 组合 UI | 只通过 `ctx.slots.register({ name, id, order, store, locale, inject }, Component)` |
 | Store | `createSkinRowStore()` 工厂（`defineStore`）；组件 `useStore` 读、`actions.sync` 写 |
@@ -54,6 +56,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:64287/plugins/dsh-clie
 ## 架构
 
 ```
+src/index.js            # Host 端 no-op 入口：供 Cordis Loader 组装插件树
 src/client/index.js     # 插件体：vanilla 引擎（CSS token 覆盖 + 壁纸层 + 悬浮面板）
                         #        + React 设置卡片（settings.general.item 槽位）
 scripts/install.mjs     # 安装（幂等：复制包 + patch cordis.patch.yml）

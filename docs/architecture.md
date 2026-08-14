@@ -33,10 +33,17 @@
 ```json
 {
   "name": "dsh-client-chat-skin",
-  "exports": { "./client": "./client.js" },
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./src/client/index.js"
+  },
   "dsh": { "client": { "platform": "web", "immediately": true } }
 }
 ```
+
+顶层 Loader 条目会先导入 `exports["."]` 组装 Host 插件树，因此客户端专用包也必须
+提供根入口。本插件的 `src/index.js` 只导出无副作用的 `apply`；浏览器逻辑仍全部位于
+`exports["./client"]`，不会在 Node.js Host 中执行。
 
 节点端（`@deepseek-ai/dsh-client-modules`）对每个 Loader 条目：
 1. 解析包 `package.json`，校验 `dsh.client`：`platform` 必须为非空字符串，
@@ -53,7 +60,7 @@
 
 ```js
 window.__ModuleLoader__.load({
-  id: "dsh-client-chat-skin",
+  id: "dsh-client-chat-skin", // 必须与 package.json 的 name 完全一致
   factory: (require) => {
     var module = { exports: {} };
     var exports = module.exports;
