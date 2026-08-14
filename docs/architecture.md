@@ -133,8 +133,18 @@ curl -s .../client.js | grep -o 'const css = "[^"]*"'
 curl -s http://127.0.0.1:64287/ | grep -o 'dsh-client-chat-skin'
 # bundle 可服务
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:64287/plugins/dsh-client-chat-skin/client.js
-# 浏览器侧：localStorage 键 dsh.chatSkin.v1；body 上有 data-ds-skin 属性
+# Host 持久化接口（端口替换为当前启动端口）
+curl -s http://127.0.0.1:64287/api/plugins/dsh-client-chat-skin/state
+# 数据文件：$DSH_HOME/data/chat-skin/state.json；body 上有 data-ds-skin 属性
 ```
+
+### 为什么不能只用 localStorage
+
+macOS 原生壳以 `dsh web --port 0` 启动，操作系统会在每次启动时分配不同端口。
+Web Storage 按 `scheme + host + port` 隔离，所以新端口看不到旧端口的 `localStorage`。
+插件的 Host 入口因此注册固定同源接口，将状态原子写入
+`$DSH_HOME/data/chat-skin/state.json`；浏览器缓存只用于减少首帧闪烁。数据目录位于 Git
+仓库之外，照片不会被安装脚本或版本控制收集。
 
 ## 6. 其他入口
 

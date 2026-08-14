@@ -13,7 +13,7 @@ window.__ModuleLoader__.load({
 		 *    右下角 🎨 悬浮面板（零依赖，材料化即注入样式，首帧无闪烁）
 		 *  - React 原生设置卡片：注册进 设置 → 通用 的 settings.general.item
 		 *    槽位（与官方 Appearance 行同款机制），提供调色盘与本地图片上传
-		 *  - 状态持久化在 localStorage（key: dsh.chatSkin.v1）
+		 *  - Host 端固定文件是持久化真源；localStorage 只做当前端口的首帧缓存
 		 *
 		 * 依赖（浏览器端 resolve，均已在官方 roster 中）：
 		 *  - react/jsx-runtime（shell 内核种子）
@@ -21,6 +21,7 @@ window.__ModuleLoader__.load({
 		 * ------------------------------------------------------------------ */
 
 		const STORAGE_KEY = "dsh.chatSkin.v1";
+		const STATE_ENDPOINT = "/api/plugins/dsh-client-chat-skin/state";
 		const STYLE_ID = "dsh-chat-skin-style";
 		const CORE_ID = "dsh-chat-skin-core";
 		const WALL_ID = "dsh-chat-skin-wall";
@@ -108,6 +109,27 @@ window.__ModuleLoader__.load({
 		function newHistoryId() {
 			return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 		}
+		function normalizeState(value) {
+			if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+			const history = Array.isArray(value.h) ? value.h
+				.filter((entry) => entry && typeof entry.id === "string" && isImageDataUrl(entry.data))
+				.slice(0, HISTORY_LIMIT)
+				.map((entry) => ({ id: entry.id, data: entry.data })) : [];
+			let active = typeof value.a === "string" && history.some((entry) => entry.id === value.a) ? value.a : null;
+			if (!active && isImageDataUrl(value.w)) {
+				const migrated = { id: newHistoryId(), data: value.w };
+				history.unshift(migrated);
+				active = migrated.id;
+			}
+			return {
+				c: isHexColor(value.c) ? value.c.toLowerCase() : null,
+				a: active,
+				h: history.slice(0, HISTORY_LIMIT)
+			};
+		}
+		function hasCustomization(skin) {
+			return Boolean(skin.c || skin.a || skin.h.length);
+		}
 		function activeWall(skin) {
 			const item = skin.h.find((entry) => entry.id === skin.a);
 			return item ? item.data : null;
@@ -139,25 +161,10 @@ window.__ModuleLoader__.load({
 			try {
 				const raw = localStorage.getItem(STORAGE_KEY);
 				if (!raw) return { c: null, a: null, h: [] };
-				const s = JSON.parse(raw);
-				const history = Array.isArray(s.h) ? s.h
-					.filter((entry) => entry && typeof entry.id === "string" && isImageDataUrl(entry.data))
-					.slice(0, HISTORY_LIMIT)
-					.map((entry) => ({ id: entry.id, data: entry.data })) : [];
-				let active = typeof s.a === "string" && history.some((entry) => entry.id === s.a) ? s.a : null;
-				if (!active && isImageDataUrl(s.w)) {
-					const migrated = { id: newHistoryId(), data: s.w };
-					history.unshift(migrated);
-					active = migrated.id;
-				}
-				return {
-					c: isHexColor(s.c) ? s.c.toLowerCase() : null,
-					a: active,
-					h: history.slice(0, HISTORY_LIMIT)
-				};
+				return normalizeState(JSON.parse(raw)) || { c: null, a: null, h: [] };
 			} catch (e) { return { c: null, a: null, h: [] }; }
 		}
-		function saveState(s) {
+		function saveLocalState(s) {
 			s.h = s.h.slice(0, HISTORY_LIMIT);
 			while (true) {
 				try {
@@ -281,8 +288,76 @@ window.__ModuleLoader__.load({
 
 		/* --------------------------- 悬浮面板（vanilla） --------------------------- */
 		let state = loadState();
-		saveState(state); // 立即落盘旧版 `{ w }` 到带历史记录的新结构。
+		let stateRevision = 0;
+		let hostReady = false;
+		let hostSaveTimer = null;
+		let pendingHostBody = null;
+		let hostWrite = Promise.resolve();
+		saveLocalState(state); // 当前端口首帧缓存；同时迁移旧版 `{ w }` 结构。
+
+		function flushHostState() {
+			if (!hostReady || !pendingHostBody) return;
+			const body = pendingHostBody;
+			pendingHostBody = null;
+			hostWrite = hostWrite.then(async () => {
+				const response = await fetch(STATE_ENDPOINT, {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body
+				});
+				if (!response.ok) throw new Error("HTTP " + response.status);
+			}).catch((error) => {
+				console.warn("dsh-chat-skin: durable save failed", error);
+			});
+		}
+		function queueHostState(s, immediate) {
+			if (!hostReady) return;
+			pendingHostBody = JSON.stringify({ c: s.c, a: s.a, h: s.h });
+			if (hostSaveTimer) clearTimeout(hostSaveTimer);
+			hostSaveTimer = setTimeout(() => {
+				hostSaveTimer = null;
+				flushHostState();
+			}, immediate ? 0 : 180);
+		}
+		function saveState(s, immediate) {
+			const saved = saveLocalState(s);
+			queueHostState(s, immediate);
+			return saved;
+		}
+		async function hydrateHostState(attempt) {
+			const revisionAtStart = stateRevision;
+			try {
+				const response = await fetch(STATE_ENDPOINT, { headers: { accept: "application/json" }, cache: "no-store" });
+				if (!response.ok) throw new Error("HTTP " + response.status);
+				const payload = await response.json();
+				const durable = normalizeState(payload && payload.state);
+				hostReady = true;
+				if (stateRevision !== revisionAtStart) {
+					queueHostState(state, true);
+					return;
+				}
+				if (durable) {
+					state = durable;
+					saveLocalState(state);
+					applySkin(state);
+				} else if (hasCustomization(state)) {
+					// One-time migration from this origin's legacy localStorage.
+					queueHostState(state, true);
+				}
+			} catch (error) {
+				if (attempt < 3) {
+					setTimeout(() => { void hydrateHostState(attempt + 1); }, 500 * (attempt + 1));
+				} else {
+					console.warn("dsh-chat-skin: durable state unavailable; using this port's cache", error);
+				}
+			}
+		}
+		void hydrateHostState(0);
+		if (typeof window !== "undefined") {
+			window.addEventListener("pagehide", flushHostState);
+		}
 		function updateState(next) {
+			stateRevision += 1;
 			state = next;
 			saveState(state);
 			applySkin(state);
@@ -350,6 +425,7 @@ window.__ModuleLoader__.load({
 				colorCode.textContent = colorInput.value.toLowerCase();
 				updateState({ ...state, c: colorInput.value.toLowerCase() });
 			};
+			colorInput.onchange = () => queueHostState(state, true);
 			fileBtn.onclick = () => pickImage(addHistory);
 			clearBtn.onclick = () => updateState({ ...state, a: null });
 			resetBtn.onclick = () => updateState({ ...state, c: null, a: null });
@@ -522,6 +598,9 @@ window.__ModuleLoader__.load({
 			} catch (e) { log("dsh-chat-skin card: " + e.message); }
 			if (ctx && typeof ctx.effect === "function") {
 				ctx.effect(() => () => {
+					if (hostSaveTimer) clearTimeout(hostSaveTimer);
+					flushHostState();
+					if (typeof window !== "undefined") window.removeEventListener("pagehide", flushHostState);
 					for (const id of [STYLE_ID, CORE_ID, WALL_ID, FAB_ID, PANEL_ID]) {
 						const el = document.getElementById(id);
 						if (el) el.remove();

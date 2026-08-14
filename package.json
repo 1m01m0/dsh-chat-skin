@@ -1,6 +1,6 @@
 {
   "name": "dsh-client-chat-skin",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Custom background client plugin for the DeepSeek Harness Web GUI: free color palette, local photo upload, recent background history, and a native settings card",
   "type": "module",
@@ -22,6 +22,9 @@
         "@deepseek-ai/dsh-api-remotes"
       ]
     }
+  },
+  "scripts": {
+    "test": "node --test"
   },
   "license": "MIT"
 }
