@@ -1,0 +1,25 @@
+{
+  "name": "dsh-client-chat-skin",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Chat wallpaper & skin client plugin for the DeepSeek Harness Web GUI: CSS-token skins, custom wallpaper, native settings card (dsh.client contract)",
+  "type": "module",
+  "exports": {
+    "./client": "./src/client/index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
+    }
+  },
+  "license": "MIT"
+}
